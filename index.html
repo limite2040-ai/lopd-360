@@ -100,6 +100,14 @@ footer{text-align:center;font-size:.75rem;color:#94a3b8;margin-top:26px;}
   <div class="card hidden" id="step-1">
     <h2>🔐 Tus proveedores con acceso a datos</h2>
     <p class="lead">Empresas externas que, para darte su servicio, ven datos de tu empresa: gestoría, informático, el programa de nóminas, la correduría de seguros, mensajería…</p>
+    <div id="gestoria-card" class="hidden" style="border:1.5px solid var(--verde2);background:var(--verde-claro);border-radius:13px;padding:15px;margin-bottom:16px">
+      <p style="font-weight:600;color:var(--verde);font-size:.92rem;margin-bottom:2px">📁 Tu gestoría</p>
+      <p style="font-size:.8rem;color:var(--gris);margin-bottom:11px">La tenemos registrada. Confírmala, o corrígela si ha cambiado.</p>
+      <div class="row"><div class="field"><label>Nombre</label><input id="g-nombre"/></div><div class="field"><label>Contacto</label><input id="g-contacto"/></div></div>
+      <div class="row"><div class="field"><label>Teléfono</label><input id="g-tel"/></div><div class="field"><label>Email</label><input id="g-email"/></div></div>
+      <button class="btn" onclick="confirmaGestoria()" style="margin-top:2px">✓ Confirmar mi gestoría</button>
+      <div id="gestoria-ok" class="hidden" style="font-size:.85rem;color:var(--verde);font-weight:600;margin-top:8px"></div>
+    </div>
     <div id="enc-list"></div>
     <div class="field"><label>Tipo de proveedor</label>
       <select id="enc-tipo"><option>Gestoría / asesoría</option><option>Informático / sistemas</option><option>Hosting / nube</option><option>Software / programa de gestión</option><option>Seguros / correduría</option><option>Transporte / mensajería</option><option>Otro</option></select></div>
@@ -210,6 +218,7 @@ async function cargarConfig(){
     const arr = await r.json();
     if(arr && arr[0]){
       if(arr[0].logo) document.getElementById('logo').src = arr[0].logo;
+      if(arr[0].gestoria) window.PORTAL_GESTORIA = arr[0].gestoria;
       if(arr[0].color){
         document.documentElement.style.setProperty('--verde', arr[0].color);
         document.querySelector('header').style.background = arr[0].color;
@@ -219,7 +228,7 @@ async function cargarConfig(){
 }
 cargarConfig();
 
-const data = { encargados:[], empleados:[], dispositivos:[] };
+const data = { encargados:[], empleados:[], dispositivos:[], gestoria:null };
 let cur = 0;
 
 function go(n){
@@ -227,8 +236,29 @@ function go(n){
   for(let i=0;i<=4;i++) document.getElementById('p'+i).classList.toggle('on', i<=n);
   cur = n;
   document.getElementById('step-'+n).classList.remove('hidden');
+  if(n===1) mostrarGestoria();
   if(n===4) renderReview();
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function mostrarGestoria(){
+  const g = window.PORTAL_GESTORIA;
+  if(!g || !(g.nombre||'').trim() || data.gestoria) return; // nada que mostrar, o ya gestionada
+  document.getElementById('g-nombre').value = g.nombre||'';
+  document.getElementById('g-contacto').value = g.contacto||'';
+  document.getElementById('g-tel').value = g.tel||'';
+  document.getElementById('g-email').value = g.email||'';
+  document.getElementById('gestoria-card').classList.remove('hidden');
+}
+function confirmaGestoria(){
+  const nombre = (document.getElementById('g-nombre').value||'').trim();
+  if(!nombre){ alert('Pon el nombre de tu gestoría.'); return; }
+  data.gestoria = { nombre, contacto:(document.getElementById('g-contacto').value||'').trim(), tel:(document.getElementById('g-tel').value||'').trim(), email:(document.getElementById('g-email').value||'').trim() };
+  ['g-nombre','g-contacto','g-tel','g-email'].forEach(id=>document.getElementById(id).disabled=true);
+  document.querySelector('#gestoria-card button').style.display='none';
+  const ok = document.getElementById('gestoria-ok');
+  ok.textContent = '✓ Gestoría confirmada: '+nombre;
+  ok.classList.remove('hidden');
 }
 
 // chips multi-select
@@ -320,7 +350,7 @@ function renderReview(){
     sec('💻 Equipos', data.dispositivos, x=>`<div class="added"><div class="info"><b>${x.tipo}</b> <span>${x.marca?'· '+x.marca:''}</span></div></div>`);
 }
 async function enviar(){
-  if(data.encargados.length===0 && data.empleados.length===0 && data.dispositivos.length===0){
+  if(data.encargados.length===0 && data.empleados.length===0 && data.dispositivos.length===0 && !data.gestoria){
     alert('Añade al menos un dato antes de enviar.');
     return;
   }
@@ -330,7 +360,7 @@ async function enviar(){
     const r = await fetch(SUPA_URL+"/rest/v1/portal_envios", {
       method:"POST",
       headers:{ ...sbHeaders, Prefer:"return=minimal" },
-      body: JSON.stringify({ cid:CID, encargados:data.encargados, empleados:data.empleados, dispositivos:data.dispositivos })
+      body: JSON.stringify({ cid:CID, encargados:data.encargados, empleados:data.empleados, dispositivos:data.dispositivos, gestoria:data.gestoria })
     });
     if(!r.ok){ const t = await r.text(); throw new Error(t); }
     document.getElementById('step-4').classList.add('hidden');
